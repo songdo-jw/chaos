@@ -1,0 +1,193 @@
+<title>이중진자 킥 제어 실험실</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: 실험 화면(캔버스) 왼쪽, 조작 패널 오른쪽, 좁으면 한 열 */
+:root{--bg:#f3f5f8;--panel:#ffffff;--fg:#1b2230;--mute:#5d6778;--line:#d6dce6;--ghost:#9aa6b8;--acc:#2a6fdb;--kick:#e0622a;--ok:#1f9d6b;
+--body:"IBM Plex Sans KR",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151c;--panel:#1a2029;--fg:#e6eaf1;--mute:#98a2b3;--line:#2c3542;--ghost:#5c6878;--acc:#6aa0ff;--kick:#ff8a52;--ok:#42c48f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#11151c;--panel:#1a2029;--fg:#e6eaf1;--mute:#98a2b3;--line:#2c3542;--ghost:#5c6878;--acc:#6aa0ff;--kick:#ff8a52;--ok:#42c48f;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:1.35rem;margin:0;text-wrap:balance}
+.lead{color:var(--mute);margin:4px 0 0;line-height:1.6;max-width:68ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+canvas{width:100%;display:block;border-radius:6px;background:var(--bg)}
+.ctl{display:grid;gap:14px}
+label{display:grid;gap:4px;font-size:.88rem}
+.row{display:flex;justify-content:space-between;gap:8px}
+.val{font-family:var(--mono);color:var(--acc)}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;font-size:.9rem;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px 12px;border-radius:7px;cursor:pointer}
+button.pri{background:var(--acc);color:var(--panel);border-color:var(--acc)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stat{border-top:2px solid var(--line);padding-top:6px}
+.stat b{display:block;font-family:var(--mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.75rem;color:var(--mute);letter-spacing:.02em}
+.stat.k{border-color:var(--kick)}.stat.g{border-color:var(--ghost)}
+.legend{display:flex;gap:14px;font-size:.8rem;color:var(--mute);flex-wrap:wrap;margin-top:8px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.verdict{font-size:.92rem;line-height:1.6;min-height:3em}
+h2{font-size:1rem;margin:0 0 8px}
+#scan{height:180px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>이중진자 킥 제어 실험실</h1>
+    <p class="lead">혼돈 운동 중인 이중진자에 작은 킥을 한 번 주어, 두 팔이 모두 위로 서는 목표(180°±15°)에 더 빨리 도달시킬 수 있는지 확인합니다. 회색은 킥 없는 진자, 색이 있는 것은 킥을 받은 진자입니다.</p>
+  </header>
+  <div class="grid">
+    <div class="card">
+      <canvas id="cv" width="640" height="460" aria-label="이중진자 시뮬레이션"></canvas>
+      <div class="legend"><span><i class="dot" style="background:var(--ghost)"></i>킥 없음</span><span><i class="dot" style="background:var(--acc)"></i>킥 받은 진자</span><span><i class="dot" style="background:var(--ok)"></i>목표 영역</span></div>
+    </div>
+    <div class="card ctl">
+      <label for="en"><div class="row"><span>전체 에너지 (E<sub>top</sub> 배수)</span><span class="val" id="enV"></span></div><input id="en" type="range" min="1.01" max="1.6" step="0.01" value="1.10"></label>
+      <label for="kt"><div class="row"><span>킥 시각</span><span class="val" id="ktV"></span></div><input id="kt" type="range" min="0" max="8" step="0.1" value="0.1"></label>
+      <label for="kw"><div class="row"><span>킥 크기 Δω (아래 팔)</span><span class="val" id="kwV"></span></div><input id="kw" type="range" min="-0.4" max="0.4" step="0.01" value="0.06"></label>
+      <div class="btns"><button class="pri" id="run">실행</button><button id="best">최적 킥 시각 찾기</button></div>
+      <div class="stats">
+        <div class="stat g"><span>킥 없음 도달 시간</span><b id="tg">-</b></div>
+        <div class="stat k"><span>킥 받은 진자 도달 시간</span><b id="tk">-</b></div>
+        <div class="stat"><span>킥이 더한 에너지</span><b id="de">-</b></div>
+        <div class="stat"><span>시뮬레이션 시각</span><b id="tt">0.00 s</b></div>
+      </div>
+      <p class="verdict" id="verdict">실행을 누르면 두 진자가 함께 출발합니다.</p>
+    </div>
+  </div>
+  <div class="card">
+    <h2>킥 시각에 따른 도달 시간 (현재 킥 크기 기준)</h2>
+    <canvas id="scan" width="1000" height="180" aria-label="킥 시각 탐색 그래프"></canvas>
+    <p class="lead" id="scanNote">'최적 킥 시각 찾기'를 누르면 0~8초 사이 81개 시각을 모두 계산해 그립니다. 점선은 킥이 없을 때입니다.</p>
+  </div>
+  <div class="card">
+    <h2>보고서용 분석 그래프</h2>
+    <p class="lead">보고서에 들어가는 세 가지 분석을 이 페이지에서 바로 계산합니다. 현재 설정한 에너지 값을 기준으로 하며, 그래프는 화면을 캡처해 보고서에 쓰면 됩니다.</p>
+    <div class="btns" style="margin:12px 0">
+      <button id="aSep">① 카오스 확인 (민감도)</button>
+      <button id="aMap">② 도달 시간 지도</button>
+      <button id="aEn">③ 에너지 수준별 비교</button>
+    </div>
+    <p class="verdict" id="aNote">버튼을 누르면 계산을 시작합니다. ②와 ③은 수백 번의 시뮬레이션이라 10~30초 정도 걸립니다.</p>
+    <canvas id="an" width="1000" height="420" aria-label="분석 그래프"></canvas>
+  </div>
+</div>
+
+<script>
+const g=9.81,ETOP=3*g,TOL=15*Math.PI/180,DT=0.004,TMAX=60;
+const $=id=>document.getElementById(id);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function deriv(s){const[t1,t2,w1,w2]=s,d=t1-t2,den=3-Math.cos(2*d);
+return[w1,w2,(-3*g*Math.sin(t1)-g*Math.sin(t1-2*t2)-2*Math.sin(d)*(w2*w2+w1*w1*Math.cos(d)))/den,
+(2*Math.sin(d)*(2*w1*w1+2*g*Math.cos(t1)+w2*w2*Math.cos(d)))/den]}
+function rk4(s){const a=deriv(s),b=deriv(s.map((v,i)=>v+DT/2*a[i])),c=deriv(s.map((v,i)=>v+DT/2*b[i])),d=deriv(s.map((v,i)=>v+DT*c[i]));
+return s.map((v,i)=>v+DT/6*(a[i]+2*b[i]+2*c[i]+d[i]))}
+const energy=s=>{const[t1,t2,w1,w2]=s;return .5*(2*w1*w1+w2*w2+2*w1*w2*Math.cos(t1-t2))-2*g*Math.cos(t1)-g*Math.cos(t2)};
+const wrap=a=>Math.abs(((a-Math.PI+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI);
+const near=s=>wrap(s[0])<TOL&&wrap(s[1])<TOL;
+function init(r){const t=120*Math.PI/180,V=-3*g*Math.cos(t);return[t,t,Math.sqrt(r*ETOP-V),0]}
+function arrival(r,kt,kw){let s=init(r),k=false;for(let i=0;i<TMAX/DT;i++){const t=i*DT;if(!k&&t>=kt){s[3]+=kw;k=true}s=rk4(s);if(near(s))return t+DT}return null}
+const fmt=v=>v==null?"60 s 내 미도달":v.toFixed(2)+" s";
+
+const cv=$("cv"),cx=cv.getContext("2d");let A,G,t,hitA,hitG,kicked,trA,trG,raf,dE;
+function syncLabels(){$("enV").textContent=(+$("en").value).toFixed(2)+"×";$("ktV").textContent=(+$("kt").value).toFixed(1)+" s";$("kwV").textContent=(+$("kw").value).toFixed(2)+" rad/s"}
+["en","kt","kw"].forEach(id=>$(id).addEventListener("input",syncLabels));syncLabels();
+function pos(s,cxp,cy,L){const x1=cxp+L*Math.sin(s[0]),y1=cy+L*Math.cos(s[0]);return[x1,y1,x1+L*Math.sin(s[1]),y1+L*Math.cos(s[1])]}
+function draw(){const W=cv.width,H=cv.height,cxp=W/2,cy=H/2,L=H*0.22;cx.clearRect(0,0,W,H);
+ cx.strokeStyle=css("--ok");cx.lineWidth=2;cx.setLineDash([5,5]);cx.beginPath();cx.arc(cxp,cy-2*L,24,0,7);cx.stroke();cx.setLineDash([]);
+ const tr=(arr,col)=>{cx.strokeStyle=col;cx.globalAlpha=.35;cx.lineWidth=1.2;cx.beginPath();arr.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.stroke();cx.globalAlpha=1};
+ tr(trG,css("--ghost"));tr(trA,css("--acc"));
+ const pend=(s,col,w)=>{const[x1,y1,x2,y2]=pos(s,cxp,cy,L);cx.strokeStyle=col;cx.lineWidth=w;cx.beginPath();cx.moveTo(cxp,cy);cx.lineTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();cx.fillStyle=col;[[x1,y1],[x2,y2]].forEach(p=>{cx.beginPath();cx.arc(p[0],p[1],8,0,7);cx.fill()})};
+ pend(G,css("--ghost"),3);pend(A,kicked?css("--acc"):css("--kick"),4);
+ cx.fillStyle=css("--fg");cx.beginPath();cx.arc(cxp,cy,4,0,7);cx.fill();
+ if(kicked&&t-(+$("kt").value)<0.4){cx.fillStyle=css("--kick");cx.font="600 16px "+css("--body");cx.fillText("킥!",pos(A,cxp,cy,L)[2]+12,pos(A,cxp,cy,L)[3])}}
+function reset(){const r=+$("en").value;A=init(r);G=init(r);t=0;hitA=hitG=null;kicked=false;trA=[];trG=[];dE=null;
+ ["tg","tk","de"].forEach(i=>$(i).textContent="-");$("verdict").textContent="진행 중…";draw()}
+function step(){const W=cv.width,H=cv.height,L=H*.22;
+ for(let n=0;n<4;n++){if(!kicked&&t>=+$("kt").value){const e0=energy(A);A[3]+=+$("kw").value;dE=energy(A)-e0;kicked=true;$("de").textContent=(dE>=0?"+":"")+dE.toFixed(2)+" J ("+(Math.abs(dE)/ETOP*100).toFixed(1)+"%)"}
+  A=rk4(A);G=rk4(G);t+=DT;
+  if(hitA==null&&near(A)){hitA=t;$("tk").textContent=fmt(t)}if(hitG==null&&near(G)){hitG=t;$("tg").textContent=fmt(t)}}
+ const pa=pos(A,W/2,H/2,L),pg=pos(G,W/2,H/2,L);trA.push([pa[2],pa[3]]);trG.push([pg[2],pg[3]]);if(trA.length>500){trA.shift();trG.shift()}
+ $("tt").textContent=t.toFixed(2)+" s";draw();
+ if((hitA!=null&&hitG!=null)||t>=TMAX){finish();return}raf=requestAnimationFrame(step)}
+function finish(){if(hitA==null)$("tk").textContent=fmt(null);if(hitG==null)$("tg").textContent=fmt(null);
+ let v;if(hitA!=null&&hitG!=null){const r=hitG/hitA;v=r>1.05?`킥 덕분에 ${r.toFixed(1)}배 빨리 도달했습니다.`:r<0.95?`이 킥은 오히려 도달을 ${(1/r).toFixed(1)}배 늦췄습니다. 타이밍을 바꿔 보세요.`:"킥의 효과가 거의 없었습니다."}
+ else if(hitA!=null)v="킥 없는 진자는 60초 안에 도달하지 못했지만 킥 받은 진자는 도달했습니다.";else v="킥 받은 진자가 60초 안에 도달하지 못했습니다.";
+ $("verdict").textContent=v}
+$("run").onclick=()=>{cancelAnimationFrame(raf);reset();raf=requestAnimationFrame(step)};
+
+const sc=$("scan"),sx=sc.getContext("2d");
+function drawScan(res,base){const W=sc.width,H=sc.height,p={l:44,r:12,t:12,b:28};sx.clearRect(0,0,W,H);
+ const ymax=Math.max(30,base||0),X=t=>p.l+t/8*(W-p.l-p.r),Y=v=>H-p.b-v/ymax*(H-p.t-p.b);
+ sx.strokeStyle=css("--line");sx.fillStyle=css("--mute");sx.font="12px "+css("--mono");sx.lineWidth=1;
+ for(let v=0;v<=ymax;v+=10){sx.beginPath();sx.moveTo(p.l,Y(v));sx.lineTo(W-p.r,Y(v));sx.stroke();sx.fillText(v+"s",4,Y(v)+4)}
+ for(let k=0;k<=8;k+=2)sx.fillText(k+"s",X(k)-8,H-8);
+ if(base!=null){sx.strokeStyle=css("--ghost");sx.setLineDash([6,5]);sx.beginPath();sx.moveTo(p.l,Y(base));sx.lineTo(W-p.r,Y(base));sx.stroke();sx.setLineDash([])}
+ let bi=-1;res.forEach((r,i)=>{if(r.T!=null&&(bi<0||r.T<res[bi].T))bi=i});
+ res.forEach((r,i)=>{const v=r.T??60;sx.fillStyle=i===bi?css("--kick"):(r.T!=null&&base!=null&&r.T<base?css("--acc"):css("--ghost"));sx.beginPath();sx.arc(X(r.kt),Y(Math.min(v,ymax)),i===bi?6:3.5,0,7);sx.fill()});
+ return bi}
+$("best").onclick=()=>{const r=+$("en").value,kw=+$("kw").value;$("scanNote").textContent="계산 중…";$("best").disabled=true;
+ setTimeout(()=>{const base=arrival(r,1e9,0),res=[];for(let i=0;i<=80;i++){const kt=i*0.1;res.push({kt,T:arrival(r,kt,kw)})}
+  const bi=drawScan(res,base);$("best").disabled=false;
+  if(bi>=0){$("kt").value=res[bi].kt;syncLabels();const better=res.filter(x=>x.T!=null&&base!=null&&x.T<base).length;
+   $("scanNote").textContent=`최적 킥 시각은 ${res[bi].kt.toFixed(1)} s, 도달 시간 ${res[bi].T.toFixed(2)} s (킥 없음 ${fmt(base)}). 81개 시각 중 도달을 앞당긴 경우는 ${better}개뿐입니다. 슬라이더를 최적값으로 맞췄으니 실행해 보세요.`}
+  else $("scanNote").textContent="이 킥 크기로는 60초 안에 도달하는 시각이 없습니다."},30)};
+reset();drawScan([],arrival(+$("en").value,1e9,0));
+
+/* ── 보고서용 분석 ── */
+const an=$("an"),ax=an.getContext("2d"),AP={l:64,r:20,t:24,b:44};
+const sleep=()=>new Promise(r=>setTimeout(r,0));
+let busy=false;
+function lock(on){busy=on;["aSep","aMap","aEn","best","run"].forEach(i=>$(i).disabled=on)}
+function axes(xmin,xmax,ymin,ymax,xl,yl,xticks,yticks,yfmt=v=>v){
+ const W=an.width,H=an.height;ax.clearRect(0,0,W,H);
+ const X=v=>AP.l+(v-xmin)/(xmax-xmin)*(W-AP.l-AP.r),Y=v=>H-AP.b-(v-ymin)/(ymax-ymin)*(H-AP.t-AP.b);
+ ax.font="13px "+css("--mono");ax.lineWidth=1;
+ yticks.forEach(v=>{ax.strokeStyle=css("--line");ax.beginPath();ax.moveTo(AP.l,Y(v));ax.lineTo(W-AP.r,Y(v));ax.stroke();ax.fillStyle=css("--mute");ax.textAlign="right";ax.fillText(yfmt(v),AP.l-8,Y(v)+4)});
+ xticks.forEach(v=>{ax.fillStyle=css("--mute");ax.textAlign="center";ax.fillText(v,X(v),H-AP.b+18)});
+ ax.font="13px "+css("--body");ax.fillStyle=css("--fg");ax.textAlign="center";ax.fillText(xl,(AP.l+W-AP.r)/2,H-6);
+ ax.save();ax.translate(16,(AP.t+H-AP.b)/2);ax.rotate(-Math.PI/2);ax.fillText(yl,0,0);ax.restore();ax.textAlign="left";
+ return[X,Y]}
+
+$("aSep").onclick=()=>{if(busy)return;const r=+$("en").value;let a=init(r),b=init(r);b[3]+=0.01;const ts=[],sp=[];
+ for(let i=0;i<20/DT;i++){a=rk4(a);b=rk4(b);if(i%10===0){ts.push(i*DT);sp.push(Math.max(1e-6,Math.hypot(a[0]-b[0],a[1]-b[1])))}}
+ const L=sp.map(Math.log10);const[X,Y]=axes(0,20,-4,2,"시간 (s)","두 궤적의 각도 차 (rad, 로그)",[0,5,10,15,20],[-4,-3,-2,-1,0,1,2],v=>"10^"+v);
+ ax.strokeStyle=css("--acc");ax.lineWidth=2;ax.beginPath();ts.forEach((t,i)=>i?ax.lineTo(X(t),Y(Math.max(-4,L[i]))):ax.moveTo(X(t),Y(Math.max(-4,L[i]))));ax.stroke();
+ let n=0,sx=0,sy=0,sxx=0,sxy=0;ts.forEach((t,i)=>{if(t>1&&t<8){const y=Math.log(sp[i]);n++;sx+=t;sy+=y;sxx+=t*t;sxy+=t*y}});
+ const lam=(n*sxy-sx*sy)/(n*sxx-sx*sx),c0=(sy-lam*sx)/n;
+ ax.strokeStyle=css("--kick");ax.setLineDash([6,5]);ax.beginPath();ax.moveTo(X(1),Y((c0+lam)/Math.LN10));ax.lineTo(X(8),Y((c0+lam*8)/Math.LN10));ax.stroke();ax.setLineDash([]);
+ $("aNote").textContent=`아래 팔 각속도만 0.01 rad/s 다른 두 진자의 차이입니다. 1~8초 구간 기울기(주황 점선)로 구한 리아푸노프 지수는 약 ${lam.toFixed(2)} /s, 즉 차이가 약 ${(Math.LN2/lam).toFixed(2)}초마다 2배씩 커집니다. 차이가 1 rad 근처에서 더 커지지 않는 것은 각도 차의 최댓값이 정해져 있기 때문입니다.`};
+
+function heat(v,vmax){const f=Math.min(1,v/vmax);const stops=[[253,231,37],[94,201,98],[33,145,140],[59,82,139],[68,1,84]];
+ const p=f*(stops.length-1),i=Math.min(stops.length-2,Math.floor(p)),u=p-i;return`rgb(${stops[i].map((c,k)=>Math.round(c+(stops[i+1][k]-c)*u)).join(",")})`}
+$("aMap").onclick=async()=>{if(busy)return;lock(true);const r=+$("en").value,KT=[],KW=[];
+ for(let i=0;i<=40;i++)KT.push(i*0.2);for(let j=0;j<=20;j++)KW.push(-0.4+j*0.04);
+ const base=arrival(r,1e9,0),H=[];let done=0,tot=KT.length*KW.length,best={T:1e9};
+ for(const kw of KW){const row=[];for(const kt of KT){const T=arrival(r,kt,kw);row.push(T);if(T!=null&&Math.abs(kw)<=0.1001&&T<best.T)best={T,kt,kw};done++}
+  H.push(row);$("aNote").textContent=`계산 중… ${done}/${tot}`;await sleep()}
+ const vmax=30,W=an.width,Hh=an.height;const[X,Y]=axes(0,8.2,-0.42,0.42,"킥 시각 (s)","킥 크기 Δω (rad/s)",[0,2,4,6,8],[-0.4,-0.2,0,0.2,0.4],v=>v.toFixed(1));
+ const cw=(X(0.2)-X(0)),ch=(Y(-0.4)-Y(-0.36));
+ H.forEach((row,j)=>row.forEach((T,i)=>{ax.fillStyle=heat(T??60,vmax);ax.fillRect(X(KT[i]),Y(KW[j])-ch/2,cw+0.5,ch+0.5)}));
+ if(best.kt!=null){ax.strokeStyle=css("--kick");ax.lineWidth=3;ax.strokeRect(X(best.kt)-1,Y(best.kw)-ch/2-1,cw+2,ch+2)}
+ const lx=W-AP.r-200,ly=AP.t-18;for(let k=0;k<=100;k++){ax.fillStyle=heat(k/100*vmax,vmax);ax.fillRect(lx+k*1.6,ly,2,10)}
+ ax.font="12px "+css("--mono");ax.fillStyle=css("--mute");ax.fillText("빠름 0s",lx-62,ly+9);ax.fillText("30s+ 느림",lx+166,ly+9);
+ lock(false);const faster=H.flat().filter(T=>T!=null&&base!=null&&T<base).length;
+ $("aNote").textContent=`${tot}개 실험의 목표 도달 시간입니다(노랑일수록 빠름). 킥 없음 ${fmt(base)}. 주황 테두리는 |Δω| ≤ 0.1 중 최선(${best.kt?.toFixed(1)} s에 ${best.kw?.toFixed(2)} rad/s → ${best.T<1e9?best.T.toFixed(2)+" s":"없음"}). 도달을 앞당긴 조합은 ${faster}개(${(faster/tot*100).toFixed(0)}%)이며, 빠른 칸과 느린 칸이 촘촘히 섞인 것이 카오스의 민감성을 보여줍니다.`};
+
+$("aEn").onclick=async()=>{if(busy)return;lock(true);const lv=[1.02,1.10,1.30,1.60],out=[];let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+ for(const r of lv){const nat=arrival(r,1e9,0),h=[];for(let k=0;k<80;k++){h.push(arrival(r,rnd()*8,(rnd()*2-1)*0.1));if(k%10===0){$("aNote").textContent=`계산 중… E=${r.toFixed(2)}×E_top (${k}/80)`;await sleep()}}
+  const ok=h.filter(v=>v!=null).sort((a,b)=>a-b);out.push({r,nat,best:ok[0]??null,med:ok.length?ok[Math.floor(ok.length/2)]:null,reach:ok.length/h.length})}
+ const ymax=Math.ceil(Math.max(...out.map(o=>Math.max(o.nat??0,o.med??0)))/5)*5+5;
+ const[X,Y]=axes(-0.5,3.5,0,ymax,"전체 에너지 (E_top 배수)","목표 도달 시간 (s)",[],Array.from({length:ymax/5+1},(_,i)=>i*5),v=>v+"s");
+ const bw=(X(1)-X(0))*0.22;const bar=(x,v,col)=>{if(v==null)return;ax.fillStyle=col;ax.fillRect(x-bw/2,Y(v),bw,Y(0)-Y(v));ax.fillStyle=css("--fg");ax.font="12px "+css("--mono");ax.textAlign="center";ax.fillText(v.toFixed(1),x,Y(v)-5)};
+ out.forEach((o,i)=>{bar(X(i)-bw*1.1,o.nat,css("--ghost"));bar(X(i),o.best,css("--acc"));bar(X(i)+bw*1.1,o.med,css("--kick"));
+  ax.fillStyle=css("--mute");ax.textAlign="center";ax.font="13px "+css("--mono");ax.fillText(o.r.toFixed(2)+"×",X(i),an.height-AP.b+18)});
+ ax.textAlign="left";ax.font="12px "+css("--body");[["킥 없음","--ghost"],["최선의 작은 킥","--acc"],["무작위 킥 중앙값","--kick"]].forEach(([t,c],i)=>{ax.fillStyle=css(c);ax.fillRect(AP.l+10+i*150,AP.t-16,10,10);ax.fillStyle=css("--fg");ax.fillText(t,AP.l+26+i*150,AP.t-7)});
+ lock(false);const a=out[0],c=out[2];
+ $("aNote").textContent=`각 에너지에서 |Δω| ≤ 0.1인 무작위 킥 80개를 시험했습니다. 문턱 근처(${a.r}×)에서는 킥 없이 ${fmt(a.nat)}이던 것이 최선의 킥으로 ${fmt(a.best)}까지 줄었지만, 에너지가 넉넉한 ${c.r}×에서는 ${fmt(c.nat)} → ${fmt(c.best)}로 이득이 작습니다. 무작위 킥의 중앙값이 킥 없음보다 길다면, 아무 때나 준 킥은 손해라는 뜻입니다.`};
+</script>
