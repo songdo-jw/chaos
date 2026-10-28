@@ -1,193 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>이중진자 킥 제어 실험실</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* layout: 실험 화면(캔버스) 왼쪽, 조작 패널 오른쪽, 좁으면 한 열 */
-:root{--bg:#f3f5f8;--panel:#ffffff;--fg:#1b2230;--mute:#5d6778;--line:#d6dce6;--ghost:#9aa6b8;--acc:#2a6fdb;--kick:#e0622a;--ok:#1f9d6b;
+/* layout: 위는 실험대(캔버스 + 설정 패널), 아래는 분석 도구 탭과 그래프 */
+:root{--bg:#f3f5f8;--panel:#ffffff;--fg:#1b2230;--mute:#5d6778;--line:#d6dce6;--ghost:#9aa6b8;--acc:#2a6fdb;--kick:#e0622a;--ok:#1f9d6b;--bad:#c83a4a;
 --body:"IBM Plex Sans KR",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151c;--panel:#1a2029;--fg:#e6eaf1;--mute:#98a2b3;--line:#2c3542;--ghost:#5c6878;--acc:#6aa0ff;--kick:#ff8a52;--ok:#42c48f;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#11151c;--panel:#1a2029;--fg:#e6eaf1;--mute:#98a2b3;--line:#2c3542;--ghost:#5c6878;--acc:#6aa0ff;--kick:#ff8a52;--ok:#42c48f;color-scheme:dark}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px}
-.wrap{max-width:1080px;margin:0 auto;display:grid;gap:16px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151c;--panel:#1a2029;--fg:#e6eaf1;--mute:#98a2b3;--line:#2c3542;--ghost:#5c6878;--acc:#6aa0ff;--kick:#ff8a52;--ok:#42c48f;--bad:#ff6b7a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#11151c;--panel:#1a2029;--fg:#e6eaf1;--mute:#98a2b3;--line:#2c3542;--ghost:#5c6878;--acc:#6aa0ff;--kick:#ff8a52;--ok:#42c48f;--bad:#ff6b7a;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px}
+[hidden]{display:none!important}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
 h1{font-size:1.35rem;margin:0;text-wrap:balance}
-.lead{color:var(--mute);margin:4px 0 0;line-height:1.6;max-width:68ch}
-.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
-@media (max-width:820px){.grid{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+h2{font-size:1rem;margin:0}
+h3{font-size:.8rem;margin:0;color:var(--mute);letter-spacing:.06em;text-transform:uppercase}
+.lead{color:var(--mute);margin:4px 0 0;line-height:1.6;max-width:72ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;display:grid;gap:12px;align-content:start}
 canvas{width:100%;display:block;border-radius:6px;background:var(--bg)}
-.ctl{display:grid;gap:14px}
-label{display:grid;gap:4px;font-size:.88rem}
-.row{display:flex;justify-content:space-between;gap:8px}
-.val{font-family:var(--mono);color:var(--acc)}
-input[type=range]{width:100%;accent-color:var(--acc)}
+#cv{cursor:crosshair}
+fieldset{border:none;border-top:1px solid var(--line);margin:0;padding:10px 0 0;display:grid;gap:8px}
+.f2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}
+.f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px}
+label{display:grid;gap:3px;font-size:.8rem;color:var(--mute)}
+input,select{font:inherit;font-family:var(--mono);font-size:.88rem;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0;width:100%;box-sizing:border-box}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
-button{font:inherit;font-size:.9rem;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px 12px;border-radius:7px;cursor:pointer}
+button{font:inherit;font-size:.88rem;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px 12px;border-radius:7px;cursor:pointer}
 button.pri{background:var(--acc);color:var(--panel);border-color:var(--acc)}
-button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button[aria-selected="true"]{border-color:var(--acc);color:var(--acc)}
+button:disabled{opacity:.5;cursor:wait}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.stat{border-top:2px solid var(--line);padding-top:6px}
-.stat b{display:block;font-family:var(--mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
-.stat span{font-size:.75rem;color:var(--mute);letter-spacing:.02em}
-.stat.k{border-color:var(--kick)}.stat.g{border-color:var(--ghost)}
-.legend{display:flex;gap:14px;font-size:.8rem;color:var(--mute);flex-wrap:wrap;margin-top:8px}
+.stat{border-top:2px solid var(--line);padding-top:6px;min-width:0}
+.stat b{display:block;font-family:var(--mono);font-size:1.02rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.72rem;color:var(--mute)}
+.stat.k{border-color:var(--acc)}.stat.g{border-color:var(--ghost)}
+.legend{display:flex;gap:14px;font-size:.78rem;color:var(--mute);flex-wrap:wrap}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
-.verdict{font-size:.92rem;line-height:1.6;min-height:3em}
-h2{font-size:1rem;margin:0 0 8px}
-#scan{height:180px}
+.note{font-size:.9rem;line-height:1.65;margin:0}
+.hint{font-size:.78rem;color:var(--mute);margin:0}
+textarea{font-family:var(--mono);font-size:.82rem;width:100%;min-height:120px;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);padding:8px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.pane{display:grid;gap:10px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums;min-width:420px}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left}
+th{color:var(--mute);font-weight:600}
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
     <h1>이중진자 킥 제어 실험실</h1>
-    <p class="lead">혼돈 운동 중인 이중진자에 작은 킥을 한 번 주어, 두 팔이 모두 위로 서는 목표(180°±15°)에 더 빨리 도달시킬 수 있는지 확인합니다. 회색은 킥 없는 진자, 색이 있는 것은 킥을 받은 진자입니다.</p>
+    <p class="lead">모터가 위 관절에 짧은 회전 충격(킥)을 주어, 이중진자 끝점이 정해진 시간 안에 목표 점을 지나게 만드는 실험을 설계합니다. 실제 장치에 맞춰 막대형 팔, 관절 마찰, 공기저항을 반영했습니다. 그림 위를 클릭하면 목표 점이 옮겨집니다.</p>
   </header>
+
   <div class="grid">
     <div class="card">
-      <canvas id="cv" width="640" height="460" aria-label="이중진자 시뮬레이션"></canvas>
-      <div class="legend"><span><i class="dot" style="background:var(--ghost)"></i>킥 없음</span><span><i class="dot" style="background:var(--acc)"></i>킥 받은 진자</span><span><i class="dot" style="background:var(--ok)"></i>목표 영역</span></div>
-    </div>
-    <div class="card ctl">
-      <label for="en"><div class="row"><span>전체 에너지 (E<sub>top</sub> 배수)</span><span class="val" id="enV"></span></div><input id="en" type="range" min="1.01" max="1.6" step="0.01" value="1.10"></label>
-      <label for="kt"><div class="row"><span>킥 시각</span><span class="val" id="ktV"></span></div><input id="kt" type="range" min="0" max="8" step="0.1" value="0.1"></label>
-      <label for="kw"><div class="row"><span>킥 크기 Δω (아래 팔)</span><span class="val" id="kwV"></span></div><input id="kw" type="range" min="-0.4" max="0.4" step="0.01" value="0.06"></label>
-      <div class="btns"><button class="pri" id="run">실행</button><button id="best">최적 킥 시각 찾기</button></div>
+      <canvas id="cv" width="640" height="560" aria-label="이중진자 실험 화면"></canvas>
+      <div class="legend"><span><i class="dot" style="background:var(--ghost)"></i>킥 없음</span><span><i class="dot" style="background:var(--acc)"></i>킥 적용</span><span><i class="dot" style="background:var(--ok)"></i>목표 점</span><span><i class="dot" style="background:var(--kick)"></i>킥 순간</span></div>
       <div class="stats">
-        <div class="stat g"><span>킥 없음 도달 시간</span><b id="tg">-</b></div>
-        <div class="stat k"><span>킥 받은 진자 도달 시간</span><b id="tk">-</b></div>
-        <div class="stat"><span>킥이 더한 에너지</span><b id="de">-</b></div>
-        <div class="stat"><span>시뮬레이션 시각</span><b id="tt">0.00 s</b></div>
+        <div class="stat g"><span>킥 없음: 목표 통과</span><b id="sg">-</b></div>
+        <div class="stat k"><span>킥 적용: 목표 통과</span><b id="sk">-</b></div>
+        <div class="stat"><span>킥 실행 시각 / 이때 위 팔 각도</span><b id="skt">-</b></div>
+        <div class="stat"><span>킥에 의한 각속도 변화 Δω₁, Δω₂</span><b id="sdw">-</b></div>
+        <div class="stat"><span>모터 펄스 길이 (설정 토크 기준)</span><b id="spl">-</b></div>
+        <div class="stat"><span>경과 시간 / 남은 에너지</span><b id="st">-</b></div>
       </div>
-      <p class="verdict" id="verdict">실행을 누르면 두 진자가 함께 출발합니다.</p>
+      <p class="note" id="verdict">실행을 누르면 킥 없는 진자와 킥을 받은 진자가 같은 자세에서 동시에 출발합니다.</p>
+    </div>
+
+    <div class="card">
+      <div class="btns"><button class="pri" id="run">실행</button><button id="stop">정지</button><button id="planBtn">킥 계획 찾기</button></div>
+      <fieldset>
+        <h3>장치</h3>
+        <div class="f3">
+          <label for="arm">팔 모델<select id="arm"><option value="rod">막대 (실제 장치)</option><option value="point">점질량 (이상화)</option></select></label>
+          <label for="l1">위 팔 길이 (m)<input id="l1" type="number" step="0.01" value="0.30"></label>
+          <label for="l2">아래 팔 길이 (m)<input id="l2" type="number" step="0.01" value="0.30"></label>
+          <label for="m1">위 팔 질량 (kg)<input id="m1" type="number" step="0.01" value="0.10"></label>
+          <label for="m2">아래 팔 질량 (kg)<input id="m2" type="number" step="0.01" value="0.10"></label>
+          <label for="damp">감쇠<select id="damp"><option value="1">반영</option><option value="0">무시 (이상)</option></select></label>
+          <label for="c">관절 마찰 c (N·m·s)<input id="c" type="number" step="0.0001" value="0.0002"></label>
+          <label for="k">공기저항 k (N·m·s²)<input id="k" type="number" step="0.00001" value="0.00003"></label>
+          <label for="tau">모터 최대 토크 (N·m)<input id="tau" type="number" step="0.01" value="0.10"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <h3>출발 자세와 목표</h3>
+        <div class="f3">
+          <label for="th1">위 팔 출발 각 (°)<input id="th1" type="number" step="0.5" value="120"></label>
+          <label for="th2">아래 팔 출발 각 (°)<input id="th2" type="number" step="0.5" value="90"></label>
+          <label for="err">출발 각 오차 σ (°)<input id="err" type="number" step="0.1" value="0.5"></label>
+          <label for="tx">목표 x (m)<input id="tx" type="number" step="0.005" value="-0.394"></label>
+          <label for="ty">목표 y (m)<input id="ty" type="number" step="0.005" value="0.069"></label>
+          <label for="tr">허용 반경 (m)<input id="tr" type="number" step="0.005" value="0.02"></label>
+          <label for="tw">제한 시간 (s)<input id="tw" type="number" step="0.5" value="3"></label>
+        </div>
+        <p class="hint">각도는 수직 아래를 0°로, 반시계 방향이 +입니다. 좌표 원점은 위 관절(모터 축)이고 위쪽이 +y입니다.</p>
+      </fieldset>
+      <fieldset>
+        <h3>모터 킥</h3>
+        <div class="f3">
+          <label for="mode">킥 방식<select id="mode"><option value="time">시간 기준</option><option value="angle">각도 기준 (엔코더)</option><option value="none">킥 없음</option></select></label>
+          <label for="kt">킥 시각 (s)<input id="kt" type="number" step="0.025" value="0.425"></label>
+          <label for="kJ">충격량 J (mN·m·s)<input id="kJ" type="number" step="0.25" value="4.75"></label>
+          <label for="ka">트리거 각도 (°)<input id="ka" type="number" step="0.1" value=""></label>
+          <label for="kd">트리거 방향<select id="kd"><option value="1">+ 방향 통과</option><option value="-1">− 방향 통과</option></select></label>
+        </div>
+        <p class="hint">각도 기준 방식은 위 팔이 트리거 각도를 지정 방향으로 지나는 순간(킥 시각 0.3초 전부터 감시) 킥합니다. '킥 계획 찾기'를 누르면 트리거 각도와 방향이 자동으로 채워집니다.</p>
+      </fieldset>
     </div>
   </div>
+
   <div class="card">
-    <h2>킥 시각에 따른 도달 시간 (현재 킥 크기 기준)</h2>
-    <canvas id="scan" width="1000" height="180" aria-label="킥 시각 탐색 그래프"></canvas>
-    <p class="lead" id="scanNote">'최적 킥 시각 찾기'를 누르면 0~8초 사이 81개 시각을 모두 계산해 그립니다. 점선은 킥이 없을 때입니다.</p>
-  </div>
-  <div class="card">
-    <h2>보고서용 분석 그래프</h2>
-    <p class="lead">보고서에 들어가는 세 가지 분석을 이 페이지에서 바로 계산합니다. 현재 설정한 에너지 값을 기준으로 하며, 그래프는 화면을 캡처해 보고서에 쓰면 됩니다.</p>
-    <div class="btns" style="margin:12px 0">
-      <button id="aSep">① 카오스 확인 (민감도)</button>
-      <button id="aMap">② 도달 시간 지도</button>
-      <button id="aEn">③ 에너지 수준별 비교</button>
+    <h2>분석 도구</h2>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-p="inv" aria-selected="true">① 출발 각도 역계산</button>
+      <button role="tab" data-p="mc">② 킥 방식 비교</button>
+      <button role="tab" data-p="hor">③ 예측 가능 시간</button>
+      <button role="tab" data-p="dmp">④ 감쇠의 영향</button>
+      <button role="tab" data-p="exp">⑤ 실험 데이터 비교</button>
     </div>
-    <p class="verdict" id="aNote">버튼을 누르면 계산을 시작합니다. ②와 ③은 수백 번의 시뮬레이션이라 10~30초 정도 걸립니다.</p>
-    <canvas id="an" width="1000" height="420" aria-label="분석 그래프"></canvas>
+    <div class="pane" id="p-inv"><p class="hint">킥 없이, 정지 상태에서 놓았을 때 제한 시간 안에 목표를 지나는 출발 각도를 모두 찾습니다(놓자마자 목표에 있는 0.5초 미만 해는 제외). 각 해마다 출발 각을 ±0.5° 흔든 8개 경우를 다시 계산해 '강건성'(성공 비율)을 매깁니다. 가장 강건한 각도가 실제 장치에서 쓸 설정값입니다.</p>
+      <div class="btns"><label for="istep" style="grid-auto-flow:column;align-items:center">격자 간격(°)<select id="istep"><option>6</option><option selected>4</option><option>3</option><option>2</option></select></label><button id="invBtn">역계산 실행</button><button id="invUse" disabled>최적 각도 적용</button></div></div>
+    <div class="pane" id="p-mc" hidden><p class="hint">출발 각에 σ만큼 무작위 오차를 넣고 시행마다 목표 통과 여부를 셉니다. 비교하는 방식: 킥 없음, 시간 기준 킥, 각도 기준 킥, 측정 후 재계산(킥 순간 엔코더로 상태를 재고 그 자리에서 최적 충격량을 다시 계산).</p>
+      <div class="btns"><label for="mcn">시행 수<select id="mcn"><option>50</option><option selected>100</option><option>200</option></select></label><button id="mcBtn">비교 실행</button></div></div>
+    <div class="pane" id="p-hor" hidden><p class="hint">출발 각 오차 크기별로, 끝점 위치 오차의 중앙값이 허용 반경을 넘는 시각을 구합니다. 이 시간보다 늦게 오는 목표는 출발 설정만으로 맞히기 어렵습니다.</p>
+      <div class="btns"><button id="horBtn">계산</button></div></div>
+    <div class="pane" id="p-dmp" hidden><p class="hint">같은 출발 자세에서 감쇠를 무시한 이상 모델과 감쇠 모델의 끝점 위치 차이를 시간에 따라 그립니다.</p>
+      <div class="btns"><button id="dmpBtn">계산</button></div></div>
+    <div class="pane" id="p-exp" hidden><p class="hint">Tracker에서 내보낸 끝점 좌표를 붙여 넣으세요. 형식: 한 줄에 <code>t, x, y</code> (초, 미터). 원점은 위 관절, 위쪽이 +y입니다. 위의 설정으로 계산한 이론 궤적과 비교합니다. 킥 설정도 그대로 반영됩니다.</p>
+      <textarea id="data" spellcheck="false" placeholder="t,x,y&#10;0.000,0.394,0.150&#10;0.004,0.394,0.149"></textarea>
+      <div class="btns"><button id="expBtn">비교</button><button id="demoBtn">예시 데이터 넣기</button></div></div>
+    <p class="note" id="aNote">분석 도구를 선택해 실행하세요. 계산에는 몇 초에서 수십 초가 걸립니다.</p>
+    <canvas id="an" width="1100" height="440" aria-label="분석 그래프"></canvas>
+    <div class="tbl" id="tbl"></div>
   </div>
 </div>
 
 <script>
-const g=9.81,ETOP=3*g,TOL=15*Math.PI/180,DT=0.004,TMAX=60;
+const g=9.81,DT=0.002,D2R=Math.PI/180;
 const $=id=>document.getElementById(id);
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-function deriv(s){const[t1,t2,w1,w2]=s,d=t1-t2,den=3-Math.cos(2*d);
-return[w1,w2,(-3*g*Math.sin(t1)-g*Math.sin(t1-2*t2)-2*Math.sin(d)*(w2*w2+w1*w1*Math.cos(d)))/den,
-(2*Math.sin(d)*(2*w1*w1+2*g*Math.cos(t1)+w2*w2*Math.cos(d)))/den]}
-function rk4(s){const a=deriv(s),b=deriv(s.map((v,i)=>v+DT/2*a[i])),c=deriv(s.map((v,i)=>v+DT/2*b[i])),d=deriv(s.map((v,i)=>v+DT*c[i]));
-return s.map((v,i)=>v+DT/6*(a[i]+2*b[i]+2*c[i]+d[i]))}
-const energy=s=>{const[t1,t2,w1,w2]=s;return .5*(2*w1*w1+w2*w2+2*w1*w2*Math.cos(t1-t2))-2*g*Math.cos(t1)-g*Math.cos(t2)};
-const wrap=a=>Math.abs(((a-Math.PI+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI);
-const near=s=>wrap(s[0])<TOL&&wrap(s[1])<TOL;
-function init(r){const t=120*Math.PI/180,V=-3*g*Math.cos(t);return[t,t,Math.sqrt(r*ETOP-V),0]}
-function arrival(r,kt,kw){let s=init(r),k=false;for(let i=0;i<TMAX/DT;i++){const t=i*DT;if(!k&&t>=kt){s[3]+=kw;k=true}s=rk4(s);if(near(s))return t+DT}return null}
-const fmt=v=>v==null?"60 s 내 미도달":v.toFixed(2)+" s";
+const num=id=>parseFloat($(id).value);
 
-const cv=$("cv"),cx=cv.getContext("2d");let A,G,t,hitA,hitG,kicked,trA,trG,raf,dE;
-function syncLabels(){$("enV").textContent=(+$("en").value).toFixed(2)+"×";$("ktV").textContent=(+$("kt").value).toFixed(1)+" s";$("kwV").textContent=(+$("kw").value).toFixed(2)+" rad/s"}
-["en","kt","kw"].forEach(id=>$(id).addEventListener("input",syncLabels));syncLabels();
-function pos(s,cxp,cy,L){const x1=cxp+L*Math.sin(s[0]),y1=cy+L*Math.cos(s[0]);return[x1,y1,x1+L*Math.sin(s[1]),y1+L*Math.cos(s[1])]}
-function draw(){const W=cv.width,H=cv.height,cxp=W/2,cy=H/2,L=H*0.22;cx.clearRect(0,0,W,H);
- cx.strokeStyle=css("--ok");cx.lineWidth=2;cx.setLineDash([5,5]);cx.beginPath();cx.arc(cxp,cy-2*L,24,0,7);cx.stroke();cx.setLineDash([]);
- const tr=(arr,col)=>{cx.strokeStyle=col;cx.globalAlpha=.35;cx.lineWidth=1.2;cx.beginPath();arr.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.stroke();cx.globalAlpha=1};
+/* ── 모델 ── */
+function params(forceIdeal){const rod=$("arm").value==="rod",l1=num("l1"),l2=num("l2"),m1=num("m1"),m2=num("m2");
+ const dm=!forceIdeal&&$("damp").value==="1";
+ return{l1,l2,m1,m2,a1:rod?l1/2:l1,a2:rod?l2/2:l2,I1:rod?m1*l1*l1/12:0,I2:rod?m2*l2*l2/12:0,c:dm?num("c"):0,k:dm?num("k"):0}}
+function massM(s,p){const d=s[0]-s[1];return[p.I1+p.m1*p.a1*p.a1+p.m2*p.l1*p.l1,p.m2*p.l1*p.a2*Math.cos(d),p.I2+p.m2*p.a2*p.a2]}
+function deriv(s,p){const[t1,t2,w1,w2]=s,[M11,M12,M22]=massM(s,p),h=p.m2*p.l1*p.a2*Math.sin(t1-t2),rel=w2-w1;
+ const f1=-h*w2*w2-(p.m1*p.a1+p.m2*p.l1)*g*Math.sin(t1)-p.c*w1+p.c*rel-p.k*w1*Math.abs(w1);
+ const f2=h*w1*w1-p.m2*p.a2*g*Math.sin(t2)-p.c*rel-p.k*w2*Math.abs(w2);
+ const det=M11*M22-M12*M12;return[w1,w2,(M22*f1-M12*f2)/det,(M11*f2-M12*f1)/det]}
+function rk4(s,p){const a=deriv(s,p),b=deriv(s.map((v,i)=>v+DT/2*a[i]),p),c=deriv(s.map((v,i)=>v+DT/2*b[i]),p),d=deriv(s.map((v,i)=>v+DT*c[i]),p);
+ return s.map((v,i)=>v+DT/6*(a[i]+2*b[i]+2*c[i]+d[i]))}
+function impulse(s,J,p){const[M11,M12,M22]=massM(s,p),det=M11*M22-M12*M12;return[s[0],s[1],s[2]+M22*J/det,s[3]-M12*J/det]}
+const tip=(s,p)=>[p.l1*Math.sin(s[0])+p.l2*Math.sin(s[1]),-(p.l1*Math.cos(s[0])+p.l2*Math.cos(s[1]))];
+function energy(s,p){const[M11,M12,M22]=massM(s,p);return .5*M11*s[2]*s[2]+M12*s[2]*s[3]+.5*M22*s[3]*s[3]-(p.m1*p.a1+p.m2*p.l1)*g*Math.cos(s[0])-p.m2*p.a2*g*Math.cos(s[1])}
+const tgt=()=>({x:num("tx"),y:num("ty"),r:num("tr"),T:num("tw")});
+const start=(d1=0,d2=0)=>[(num("th1")+d1)*D2R,(num("th2")+d2)*D2R,0,0];
+function kickCfg(){return{mode:$("mode").value,t:num("kt"),J:num("kJ")/1000,ang:num("ka")*D2R,dir:+$("kd").value}}
+/* 한 번 시뮬레이션: 목표 첫 통과 시간 (없으면 null) */
+function sim(s,p,T,G,kick,t0=0){let done=!kick||kick.mode==="none",before=false;
+ for(let i=0;t0+i*DT<T;i++){const t=t0+i*DT;
+  if(!done){let fire=false;if(kick.mode==="time")fire=t>=kick.t;else{const side=(s[0]-kick.ang)*kick.dir>=0;fire=t>=kick.t-0.3&&side&&before;before=!side}
+   if(fire){s=impulse(s,kick.J,p);done=true}}
+  s=rk4(s,p);const[x,y]=tip(s,p);if((x-G.x)**2+(y-G.y)**2<G.r*G.r)return t+DT}
+ return null}
+const fmt=v=>v==null?"미통과":v.toFixed(2)+" s";
+const sleep=()=>new Promise(r=>setTimeout(r,0));
+
+/* ── 애니메이션 ── */
+const cv=$("cv"),cx=cv.getContext("2d");
+let A,Gs,t,hitA,hitG,kicked,trA,trG,raf=0,kickPt=null,before,pRun;
+function scale(){const p=params(),L=p.l1+p.l2;return{s:Math.min(cv.width,cv.height)*0.44/L,ox:cv.width/2,oy:cv.height/2}}
+const toPx=(x,y,S)=>[S.ox+x*S.s,S.oy-y*S.s];
+function drawScene(){const p=pRun||params(),S=scale(),G=tgt();cx.clearRect(0,0,cv.width,cv.height);
+ cx.strokeStyle=css("--line");cx.lineWidth=1;cx.beginPath();cx.arc(S.ox,S.oy,(p.l1+p.l2)*S.s,0,7);cx.stroke();
+ cx.beginPath();cx.moveTo(S.ox-(p.l1+p.l2)*S.s,S.oy);cx.lineTo(S.ox+(p.l1+p.l2)*S.s,S.oy);cx.stroke();
+ const [gx,gy]=toPx(G.x,G.y,S);cx.fillStyle=css("--ok");cx.globalAlpha=.25;cx.beginPath();cx.arc(gx,gy,Math.max(5,G.r*S.s),0,7);cx.fill();cx.globalAlpha=1;
+ cx.strokeStyle=css("--ok");cx.lineWidth=2;cx.beginPath();cx.arc(gx,gy,Math.max(5,G.r*S.s),0,7);cx.stroke();
+ const tr=(a,col)=>{if(!a||!a.length)return;cx.strokeStyle=col;cx.globalAlpha=.5;cx.lineWidth=1.4;cx.beginPath();a.forEach((q,i)=>{const[u,v]=toPx(q[0],q[1],S);i?cx.lineTo(u,v):cx.moveTo(u,v)});cx.stroke();cx.globalAlpha=1};
  tr(trG,css("--ghost"));tr(trA,css("--acc"));
- const pend=(s,col,w)=>{const[x1,y1,x2,y2]=pos(s,cxp,cy,L);cx.strokeStyle=col;cx.lineWidth=w;cx.beginPath();cx.moveTo(cxp,cy);cx.lineTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();cx.fillStyle=col;[[x1,y1],[x2,y2]].forEach(p=>{cx.beginPath();cx.arc(p[0],p[1],8,0,7);cx.fill()})};
- pend(G,css("--ghost"),3);pend(A,kicked?css("--acc"):css("--kick"),4);
- cx.fillStyle=css("--fg");cx.beginPath();cx.arc(cxp,cy,4,0,7);cx.fill();
- if(kicked&&t-(+$("kt").value)<0.4){cx.fillStyle=css("--kick");cx.font="600 16px "+css("--body");cx.fillText("킥!",pos(A,cxp,cy,L)[2]+12,pos(A,cxp,cy,L)[3])}}
-function reset(){const r=+$("en").value;A=init(r);G=init(r);t=0;hitA=hitG=null;kicked=false;trA=[];trG=[];dE=null;
- ["tg","tk","de"].forEach(i=>$(i).textContent="-");$("verdict").textContent="진행 중…";draw()}
-function step(){const W=cv.width,H=cv.height,L=H*.22;
- for(let n=0;n<4;n++){if(!kicked&&t>=+$("kt").value){const e0=energy(A);A[3]+=+$("kw").value;dE=energy(A)-e0;kicked=true;$("de").textContent=(dE>=0?"+":"")+dE.toFixed(2)+" J ("+(Math.abs(dE)/ETOP*100).toFixed(1)+"%)"}
-  A=rk4(A);G=rk4(G);t+=DT;
-  if(hitA==null&&near(A)){hitA=t;$("tk").textContent=fmt(t)}if(hitG==null&&near(G)){hitG=t;$("tg").textContent=fmt(t)}}
- const pa=pos(A,W/2,H/2,L),pg=pos(G,W/2,H/2,L);trA.push([pa[2],pa[3]]);trG.push([pg[2],pg[3]]);if(trA.length>500){trA.shift();trG.shift()}
- $("tt").textContent=t.toFixed(2)+" s";draw();
- if((hitA!=null&&hitG!=null)||t>=TMAX){finish();return}raf=requestAnimationFrame(step)}
-function finish(){if(hitA==null)$("tk").textContent=fmt(null);if(hitG==null)$("tg").textContent=fmt(null);
- let v;if(hitA!=null&&hitG!=null){const r=hitG/hitA;v=r>1.05?`킥 덕분에 ${r.toFixed(1)}배 빨리 도달했습니다.`:r<0.95?`이 킥은 오히려 도달을 ${(1/r).toFixed(1)}배 늦췄습니다. 타이밍을 바꿔 보세요.`:"킥의 효과가 거의 없었습니다."}
- else if(hitA!=null)v="킥 없는 진자는 60초 안에 도달하지 못했지만 킥 받은 진자는 도달했습니다.";else v="킥 받은 진자가 60초 안에 도달하지 못했습니다.";
+ const pend=(s,col,w)=>{if(!s)return;const x1=p.l1*Math.sin(s[0]),y1=-p.l1*Math.cos(s[0]),[x2,y2]=tip(s,p),P0=[S.ox,S.oy],P1=toPx(x1,y1,S),P2=toPx(x2,y2,S);
+  cx.strokeStyle=col;cx.lineWidth=w;cx.lineCap="round";cx.beginPath();cx.moveTo(...P0);cx.lineTo(...P1);cx.lineTo(...P2);cx.stroke();cx.fillStyle=col;[P1,P2].forEach(q=>{cx.beginPath();cx.arc(q[0],q[1],5,0,7);cx.fill()})};
+ pend(Gs,css("--ghost"),4);pend(A||start(),css("--acc"),6);
+ if(kickPt){const[u,v]=toPx(kickPt[0],kickPt[1],S);cx.strokeStyle=css("--kick");cx.lineWidth=2.5;cx.beginPath();cx.arc(u,v,9,0,7);cx.stroke()}
+ cx.fillStyle=css("--fg");cx.beginPath();cx.arc(S.ox,S.oy,6,0,7);cx.fill();
+ cx.font="12px "+css("--mono");cx.fillStyle=css("--mute");cx.fillText("모터 축 (0,0)",S.ox+10,S.oy-10)}
+cv.addEventListener("click",e=>{if(raf)return;const r=cv.getBoundingClientRect(),S=scale(),px=(e.clientX-r.left)*cv.width/r.width,py=(e.clientY-r.top)*cv.height/r.height;
+ $("tx").value=((px-S.ox)/S.s).toFixed(3);$("ty").value=(-(py-S.oy)/S.s).toFixed(3);drawScene()});
+function reset(){pRun=params();A=start();Gs=start();t=0;hitA=hitG=null;kicked=$("mode").value==="none";trA=[];trG=[];kickPt=null;before=false;
+ ["sg","sk","skt","sdw","spl"].forEach(i=>$(i).textContent="-");}
+function step(){const p=pRun,G=tgt(),K=kickCfg();
+ for(let n=0;n<8;n++){
+  if(!kicked){let fire=false;if(K.mode==="time")fire=t>=K.t;else{const side=(A[0]-K.ang)*K.dir>=0;fire=t>=K.t-0.3&&side&&before;before=!side}
+   if(fire){const B=impulse(A,K.J,p);$("sdw").textContent=`${(B[2]-A[2]).toFixed(2)}, ${(B[3]-A[3]).toFixed(2)} rad/s`;A=B;kicked=true;kickPt=tip(A,p);
+    $("skt").textContent=`${t.toFixed(3)} s / ${((A[0]/D2R)%360).toFixed(1)}°`;const tau=num("tau");$("spl").textContent=tau>0?`${(Math.abs(K.J)/tau*1000).toFixed(1)} ms (${tau} N·m)`:"-"}}
+  A=rk4(A,p);Gs=rk4(Gs,p);t+=DT;
+  const a=tip(A,p),b=tip(Gs,p);if(n%2===0){trA.push(a);trG.push(b);if(trA.length>900){trA.shift();trG.shift()}}
+  if(hitA==null&&(a[0]-G.x)**2+(a[1]-G.y)**2<G.r*G.r){hitA=t;$("sk").textContent=fmt(t)}
+  if(hitG==null&&(b[0]-G.x)**2+(b[1]-G.y)**2<G.r*G.r){hitG=t;$("sg").textContent=fmt(t)}}
+ const E0=energy(start(),p);$("st").textContent=`${t.toFixed(2)} s / ${(energy(A,p)-E0>=0?"+":"")}${((energy(A,p)-E0)*1000).toFixed(0)} mJ`;
+ drawScene();
+ if(t>=G.T){finish();return}raf=requestAnimationFrame(step)}
+function finish(){raf=0;if(hitA==null)$("sk").textContent="미통과";if(hitG==null)$("sg").textContent="미통과";const G=tgt();let v;
+ if(hitA!=null&&hitG==null)v=`킥 덕분에 ${G.T}초 안에 목표를 지났습니다 (${hitA.toFixed(2)} s).`;
+ else if(hitA!=null&&hitG!=null)v=hitA<hitG?`킥 없이도 지나지만, 킥으로 ${(hitG-hitA).toFixed(2)}초 앞당겼습니다.`:`킥 없이도 지나며, 킥이 도달을 늦췄습니다.`;
+ else if(hitG!=null)v="킥 없이는 지나는데 이 킥은 궤도를 벗어나게 했습니다.";else v=`${G.T}초 안에 목표를 지나지 못했습니다. '킥 계획 찾기'를 눌러 보세요.`;
  $("verdict").textContent=v}
 $("run").onclick=()=>{cancelAnimationFrame(raf);reset();raf=requestAnimationFrame(step)};
+$("stop").onclick=()=>{cancelAnimationFrame(raf);raf=0};
+document.querySelectorAll("input,select").forEach(el=>el.addEventListener("change",()=>{if(!raf){pRun=null;A=null;Gs=null;trA=[];trG=[];kickPt=null;drawScene()}}));
 
-const sc=$("scan"),sx=sc.getContext("2d");
-function drawScan(res,base){const W=sc.width,H=sc.height,p={l:44,r:12,t:12,b:28};sx.clearRect(0,0,W,H);
- const ymax=Math.max(30,base||0),X=t=>p.l+t/8*(W-p.l-p.r),Y=v=>H-p.b-v/ymax*(H-p.t-p.b);
- sx.strokeStyle=css("--line");sx.fillStyle=css("--mute");sx.font="12px "+css("--mono");sx.lineWidth=1;
- for(let v=0;v<=ymax;v+=10){sx.beginPath();sx.moveTo(p.l,Y(v));sx.lineTo(W-p.r,Y(v));sx.stroke();sx.fillText(v+"s",4,Y(v)+4)}
- for(let k=0;k<=8;k+=2)sx.fillText(k+"s",X(k)-8,H-8);
- if(base!=null){sx.strokeStyle=css("--ghost");sx.setLineDash([6,5]);sx.beginPath();sx.moveTo(p.l,Y(base));sx.lineTo(W-p.r,Y(base));sx.stroke();sx.setLineDash([])}
- let bi=-1;res.forEach((r,i)=>{if(r.T!=null&&(bi<0||r.T<res[bi].T))bi=i});
- res.forEach((r,i)=>{const v=r.T??60;sx.fillStyle=i===bi?css("--kick"):(r.T!=null&&base!=null&&r.T<base?css("--acc"):css("--ghost"));sx.beginPath();sx.arc(X(r.kt),Y(Math.min(v,ymax)),i===bi?6:3.5,0,7);sx.fill()});
- return bi}
-$("best").onclick=()=>{const r=+$("en").value,kw=+$("kw").value;$("scanNote").textContent="계산 중…";$("best").disabled=true;
- setTimeout(()=>{const base=arrival(r,1e9,0),res=[];for(let i=0;i<=80;i++){const kt=i*0.1;res.push({kt,T:arrival(r,kt,kw)})}
-  const bi=drawScan(res,base);$("best").disabled=false;
-  if(bi>=0){$("kt").value=res[bi].kt;syncLabels();const better=res.filter(x=>x.T!=null&&base!=null&&x.T<base).length;
-   $("scanNote").textContent=`최적 킥 시각은 ${res[bi].kt.toFixed(1)} s, 도달 시간 ${res[bi].T.toFixed(2)} s (킥 없음 ${fmt(base)}). 81개 시각 중 도달을 앞당긴 경우는 ${better}개뿐입니다. 슬라이더를 최적값으로 맞췄으니 실행해 보세요.`}
-  else $("scanNote").textContent="이 킥 크기로는 60초 안에 도달하는 시각이 없습니다."},30)};
-reset();drawScan([],arrival(+$("en").value,1e9,0));
+/* ── 킥 계획 ── */
+let busy=false;const lockB=on=>{busy=on;document.querySelectorAll("button").forEach(b=>{if(b.getAttribute("role")!=="tab")b.disabled=on})};
+function setTrigger(p,tk){let s=start();for(let i=0;i<Math.round(tk/DT);i++)s=rk4(s,p);$("ka").value=((s[0]/D2R)).toFixed(2);$("kd").value=s[2]>=0?"1":"-1"}
+async function planKick(p,note=true){const G=tgt(),best={J:null};
+ for(let i=0;i<=60;i++){const tk=i*0.025;for(let j=-24;j<=24;j++){const J=j*0.00025;const h=sim(start(),p,G.T,G,{mode:"time",t:tk,J});
+   if(h!=null){const sc=h+0.05*Math.abs(J)/0.006;if(best.J==null||sc<best.sc)Object.assign(best,{tk,J,h,sc})}}
+  if(note&&i%6===0){$("verdict").textContent=`킥 계획 계산 중… ${Math.round(i/60*100)}%`;await sleep()}}
+ return best}
+$("planBtn").onclick=async()=>{if(busy)return;lockB(true);const p=params(),b=await planKick(p);lockB(false);
+ if(b.J==null){$("verdict").textContent="충격량 ±6 mN·m·s, 킥 시각 0~1.5 s 범위에서 목표를 지나는 킥을 찾지 못했습니다. 목표를 옮기거나 제한 시간을 늘려 보세요.";return}
+ $("kt").value=b.tk.toFixed(3);$("kJ").value=(b.J*1000).toFixed(2);setTrigger(p,b.tk);
+ $("verdict").textContent=`가장 빨리 목표를 지나는 계획: ${b.tk.toFixed(3)} s에 ${(b.J*1000).toFixed(2)} mN·m·s → ${b.h.toFixed(2)} s에 목표 통과. 실행을 눌러 확인하세요.`};
 
-/* ── 보고서용 분석 ── */
-const an=$("an"),ax=an.getContext("2d"),AP={l:64,r:20,t:24,b:44};
-const sleep=()=>new Promise(r=>setTimeout(r,0));
-let busy=false;
-function lock(on){busy=on;["aSep","aMap","aEn","best","run"].forEach(i=>$(i).disabled=on)}
-function axes(xmin,xmax,ymin,ymax,xl,yl,xticks,yticks,yfmt=v=>v){
- const W=an.width,H=an.height;ax.clearRect(0,0,W,H);
- const X=v=>AP.l+(v-xmin)/(xmax-xmin)*(W-AP.l-AP.r),Y=v=>H-AP.b-(v-ymin)/(ymax-ymin)*(H-AP.t-AP.b);
+/* ── 분석 그래프 공통 ── */
+const an=$("an"),ax=an.getContext("2d"),AP={l:70,r:24,t:30,b:48};
+function axes(x0,x1,y0,y1,xl,yl,xt,yt,xf=v=>v,yf=v=>v){const W=an.width,H=an.height;ax.clearRect(0,0,W,H);
+ const X=v=>AP.l+(v-x0)/(x1-x0)*(W-AP.l-AP.r),Y=v=>H-AP.b-(v-y0)/(y1-y0)*(H-AP.t-AP.b);
  ax.font="13px "+css("--mono");ax.lineWidth=1;
- yticks.forEach(v=>{ax.strokeStyle=css("--line");ax.beginPath();ax.moveTo(AP.l,Y(v));ax.lineTo(W-AP.r,Y(v));ax.stroke();ax.fillStyle=css("--mute");ax.textAlign="right";ax.fillText(yfmt(v),AP.l-8,Y(v)+4)});
- xticks.forEach(v=>{ax.fillStyle=css("--mute");ax.textAlign="center";ax.fillText(v,X(v),H-AP.b+18)});
- ax.font="13px "+css("--body");ax.fillStyle=css("--fg");ax.textAlign="center";ax.fillText(xl,(AP.l+W-AP.r)/2,H-6);
- ax.save();ax.translate(16,(AP.t+H-AP.b)/2);ax.rotate(-Math.PI/2);ax.fillText(yl,0,0);ax.restore();ax.textAlign="left";
- return[X,Y]}
+ yt.forEach(v=>{ax.strokeStyle=css("--line");ax.beginPath();ax.moveTo(AP.l,Y(v));ax.lineTo(W-AP.r,Y(v));ax.stroke();ax.fillStyle=css("--mute");ax.textAlign="right";ax.fillText(yf(v),AP.l-8,Y(v)+4)});
+ xt.forEach(v=>{ax.fillStyle=css("--mute");ax.textAlign="center";ax.fillText(xf(v),X(v),H-AP.b+18)});
+ ax.font="13px "+css("--body");ax.fillStyle=css("--fg");ax.textAlign="center";ax.fillText(xl,(AP.l+W-AP.r)/2,H-8);
+ ax.save();ax.translate(18,(AP.t+H-AP.b)/2);ax.rotate(-Math.PI/2);ax.fillText(yl,0,0);ax.restore();ax.textAlign="left";return[X,Y]}
+function legend(items){ax.font="12px "+css("--body");let x=AP.l+6;items.forEach(([t,c])=>{ax.fillStyle=css(c);ax.fillRect(x,8,12,12);ax.fillStyle=css("--fg");ax.fillText(t,x+18,19);x+=ax.measureText(t).width+44})}
+function viridis(f){f=Math.max(0,Math.min(1,f));const S=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]],q=f*(S.length-1),i=Math.min(S.length-2,Math.floor(q)),u=q-i;return`rgb(${S[i].map((c,k)=>Math.round(c+(S[i+1][k]-c)*u)).join(",")})`}
+const note=t=>$("aNote").textContent=t;const table=h=>$("tbl").innerHTML=h;
 
-$("aSep").onclick=()=>{if(busy)return;const r=+$("en").value;let a=init(r),b=init(r);b[3]+=0.01;const ts=[],sp=[];
- for(let i=0;i<20/DT;i++){a=rk4(a);b=rk4(b);if(i%10===0){ts.push(i*DT);sp.push(Math.max(1e-6,Math.hypot(a[0]-b[0],a[1]-b[1])))}}
- const L=sp.map(Math.log10);const[X,Y]=axes(0,20,-4,2,"시간 (s)","두 궤적의 각도 차 (rad, 로그)",[0,5,10,15,20],[-4,-3,-2,-1,0,1,2],v=>"10^"+v);
- ax.strokeStyle=css("--acc");ax.lineWidth=2;ax.beginPath();ts.forEach((t,i)=>i?ax.lineTo(X(t),Y(Math.max(-4,L[i]))):ax.moveTo(X(t),Y(Math.max(-4,L[i]))));ax.stroke();
- let n=0,sx=0,sy=0,sxx=0,sxy=0;ts.forEach((t,i)=>{if(t>1&&t<8){const y=Math.log(sp[i]);n++;sx+=t;sy+=y;sxx+=t*t;sxy+=t*y}});
- const lam=(n*sxy-sx*sy)/(n*sxx-sx*sx),c0=(sy-lam*sx)/n;
- ax.strokeStyle=css("--kick");ax.setLineDash([6,5]);ax.beginPath();ax.moveTo(X(1),Y((c0+lam)/Math.LN10));ax.lineTo(X(8),Y((c0+lam*8)/Math.LN10));ax.stroke();ax.setLineDash([]);
- $("aNote").textContent=`아래 팔 각속도만 0.01 rad/s 다른 두 진자의 차이입니다. 1~8초 구간 기울기(주황 점선)로 구한 리아푸노프 지수는 약 ${lam.toFixed(2)} /s, 즉 차이가 약 ${(Math.LN2/lam).toFixed(2)}초마다 2배씩 커집니다. 차이가 1 rad 근처에서 더 커지지 않는 것은 각도 차의 최댓값이 정해져 있기 때문입니다.`};
+document.querySelectorAll("[role=tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[role=tab]").forEach(x=>{x.setAttribute("aria-selected",x===b);$("p-"+x.dataset.p).hidden=x!==b})});
 
-function heat(v,vmax){const f=Math.min(1,v/vmax);const stops=[[253,231,37],[94,201,98],[33,145,140],[59,82,139],[68,1,84]];
- const p=f*(stops.length-1),i=Math.min(stops.length-2,Math.floor(p)),u=p-i;return`rgb(${stops[i].map((c,k)=>Math.round(c+(stops[i+1][k]-c)*u)).join(",")})`}
-$("aMap").onclick=async()=>{if(busy)return;lock(true);const r=+$("en").value,KT=[],KW=[];
- for(let i=0;i<=40;i++)KT.push(i*0.2);for(let j=0;j<=20;j++)KW.push(-0.4+j*0.04);
- const base=arrival(r,1e9,0),H=[];let done=0,tot=KT.length*KW.length,best={T:1e9};
- for(const kw of KW){const row=[];for(const kt of KT){const T=arrival(r,kt,kw);row.push(T);if(T!=null&&Math.abs(kw)<=0.1001&&T<best.T)best={T,kt,kw};done++}
-  H.push(row);$("aNote").textContent=`계산 중… ${done}/${tot}`;await sleep()}
- const vmax=30,W=an.width,Hh=an.height;const[X,Y]=axes(0,8.2,-0.42,0.42,"킥 시각 (s)","킥 크기 Δω (rad/s)",[0,2,4,6,8],[-0.4,-0.2,0,0.2,0.4],v=>v.toFixed(1));
- const cw=(X(0.2)-X(0)),ch=(Y(-0.4)-Y(-0.36));
- H.forEach((row,j)=>row.forEach((T,i)=>{ax.fillStyle=heat(T??60,vmax);ax.fillRect(X(KT[i]),Y(KW[j])-ch/2,cw+0.5,ch+0.5)}));
- if(best.kt!=null){ax.strokeStyle=css("--kick");ax.lineWidth=3;ax.strokeRect(X(best.kt)-1,Y(best.kw)-ch/2-1,cw+2,ch+2)}
- const lx=W-AP.r-200,ly=AP.t-18;for(let k=0;k<=100;k++){ax.fillStyle=heat(k/100*vmax,vmax);ax.fillRect(lx+k*1.6,ly,2,10)}
- ax.font="12px "+css("--mono");ax.fillStyle=css("--mute");ax.fillText("빠름 0s",lx-62,ly+9);ax.fillText("30s+ 느림",lx+166,ly+9);
- lock(false);const faster=H.flat().filter(T=>T!=null&&base!=null&&T<base).length;
- $("aNote").textContent=`${tot}개 실험의 목표 도달 시간입니다(노랑일수록 빠름). 킥 없음 ${fmt(base)}. 주황 테두리는 |Δω| ≤ 0.1 중 최선(${best.kt?.toFixed(1)} s에 ${best.kw?.toFixed(2)} rad/s → ${best.T<1e9?best.T.toFixed(2)+" s":"없음"}). 도달을 앞당긴 조합은 ${faster}개(${(faster/tot*100).toFixed(0)}%)이며, 빠른 칸과 느린 칸이 촘촘히 섞인 것이 카오스의 민감성을 보여줍니다.`};
+/* ① 역계산 */
+let invBest=null;
+$("invBtn").onclick=async()=>{if(busy)return;lockB(true);table("");const p=params(),G=tgt(),st=+$("istep").value,vals=[];for(let a=-180+st/2;a<180;a+=st)vals.push(a);
+ const hits=[];let n=0;
+ for(const a1 of vals){for(const a2 of vals){const h=sim([a1*D2R,a2*D2R,0,0],p,G.T,G,null);if(h!=null&&h>=0.5)hits.push({a1,a2,h,rob:0})}
+  n++;if(n%4===0){note(`출발 각도 탐색 중… ${Math.round(n/vals.length*100)}% (해 ${hits.length}개)`);await sleep()}}
+ const pert=[[.5,0],[-.5,0],[0,.5],[0,-.5],[.5,.5],[-.5,-.5],[.5,-.5],[-.5,.5]];
+ for(let i=0;i<hits.length;i++){const q=hits[i];let ok=0;for(const d of pert)if(sim([(q.a1+d[0])*D2R,(q.a2+d[1])*D2R,0,0],p,G.T,G,null)!=null)ok++;q.rob=ok/8;
+  if(i%20===0){note(`강건성 평가 중… ${i}/${hits.length}`);await sleep()}}
+ const[X,Y]=axes(-180,180,-180,180,"위 팔 출발 각 θ₁ (°)","아래 팔 출발 각 θ₂ (°)",[-180,-90,0,90,180],[-180,-90,0,90,180]);
+ const cw=X(st)-X(0),ch=Y(0)-Y(st);
+ hits.forEach(q=>{ax.fillStyle=viridis(q.rob);ax.fillRect(X(q.a1-st/2),Y(q.a2+st/2),cw+.5,ch+.5)});
+ hits.sort((a,b)=>b.rob-a.rob||a.h-b.h);invBest=hits[0]||null;
+ if(invBest){ax.strokeStyle=css("--kick");ax.lineWidth=3;ax.strokeRect(X(invBest.a1-st/2)-2,Y(invBest.a2+st/2)-2,cw+4,ch+4)}
+ ax.font="12px "+css("--mono");const lx=an.width-AP.r-220;for(let i=0;i<=100;i++){ax.fillStyle=viridis(i/100);ax.fillRect(lx+i*1.6,10,2,10)}ax.fillStyle=css("--mute");ax.fillText("강건성 0%",lx-70,20);ax.fillText("100%",lx+166,20);
+ lockB(false);$("invUse").disabled=!invBest;
+ const robust=hits.filter(q=>q.rob===1).length;
+ note(invBest?`${vals.length**2}개 출발 자세 중 ${hits.length}개(${(hits.length/vals.length**2*100).toFixed(1)}%)가 ${G.T}초 안에 목표를 지납니다. ±0.5° 흔들어도 8번 모두 성공한 자세는 ${robust}개입니다. 주황 테두리가 가장 강건한 설정 (θ₁=${invBest.a1}°, θ₂=${invBest.a2}°, ${invBest.h.toFixed(2)} s 통과, 강건성 ${(invBest.rob*100).toFixed(0)}%). 해가 흩어진 점처럼 나타나는 것은 카오스 때문에 성공 영역이 얇고 잘게 쪼개져 있기 때문입니다.`:"이 목표와 제한 시간으로는 해가 없습니다.");
+ table(`<table><tr><th>순위</th><th>θ₁ (°)</th><th>θ₂ (°)</th><th>통과 시각</th><th>강건성</th></tr>${hits.slice(0,8).map((q,i)=>`<tr><td>${i+1}</td><td>${q.a1}</td><td>${q.a2}</td><td>${q.h.toFixed(2)} s</td><td>${(q.rob*100).toFixed(0)}%</td></tr>`).join("")}</table>`)};
+$("invUse").onclick=()=>{if(!invBest)return;$("th1").value=invBest.a1;$("th2").value=invBest.a2;$("mode").value="none";drawScene();note(`출발 각도를 θ₁=${invBest.a1}°, θ₂=${invBest.a2}°로, 킥을 '없음'으로 바꿨습니다. 실행을 눌러 확인하세요.`)};
 
-$("aEn").onclick=async()=>{if(busy)return;lock(true);const lv=[1.02,1.10,1.30,1.60],out=[];let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
- for(const r of lv){const nat=arrival(r,1e9,0),h=[];for(let k=0;k<80;k++){h.push(arrival(r,rnd()*8,(rnd()*2-1)*0.1));if(k%10===0){$("aNote").textContent=`계산 중… E=${r.toFixed(2)}×E_top (${k}/80)`;await sleep()}}
-  const ok=h.filter(v=>v!=null).sort((a,b)=>a-b);out.push({r,nat,best:ok[0]??null,med:ok.length?ok[Math.floor(ok.length/2)]:null,reach:ok.length/h.length})}
- const ymax=Math.ceil(Math.max(...out.map(o=>Math.max(o.nat??0,o.med??0)))/5)*5+5;
- const[X,Y]=axes(-0.5,3.5,0,ymax,"전체 에너지 (E_top 배수)","목표 도달 시간 (s)",[],Array.from({length:ymax/5+1},(_,i)=>i*5),v=>v+"s");
- const bw=(X(1)-X(0))*0.22;const bar=(x,v,col)=>{if(v==null)return;ax.fillStyle=col;ax.fillRect(x-bw/2,Y(v),bw,Y(0)-Y(v));ax.fillStyle=css("--fg");ax.font="12px "+css("--mono");ax.textAlign="center";ax.fillText(v.toFixed(1),x,Y(v)-5)};
- out.forEach((o,i)=>{bar(X(i)-bw*1.1,o.nat,css("--ghost"));bar(X(i),o.best,css("--acc"));bar(X(i)+bw*1.1,o.med,css("--kick"));
-  ax.fillStyle=css("--mute");ax.textAlign="center";ax.font="13px "+css("--mono");ax.fillText(o.r.toFixed(2)+"×",X(i),an.height-AP.b+18)});
- ax.textAlign="left";ax.font="12px "+css("--body");[["킥 없음","--ghost"],["최선의 작은 킥","--acc"],["무작위 킥 중앙값","--kick"]].forEach(([t,c],i)=>{ax.fillStyle=css(c);ax.fillRect(AP.l+10+i*150,AP.t-16,10,10);ax.fillStyle=css("--fg");ax.fillText(t,AP.l+26+i*150,AP.t-7)});
- lock(false);const a=out[0],c=out[2];
- $("aNote").textContent=`각 에너지에서 |Δω| ≤ 0.1인 무작위 킥 80개를 시험했습니다. 문턱 근처(${a.r}×)에서는 킥 없이 ${fmt(a.nat)}이던 것이 최선의 킥으로 ${fmt(a.best)}까지 줄었지만, 에너지가 넉넉한 ${c.r}×에서는 ${fmt(c.nat)} → ${fmt(c.best)}로 이득이 작습니다. 무작위 킥의 중앙값이 킥 없음보다 길다면, 아무 때나 준 킥은 손해라는 뜻입니다.`};
+/* ② 킥 방식 몬테카를로 */
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+$("mcBtn").onclick=async()=>{if(busy)return;lockB(true);table("");const p=params(),G=tgt(),K=kickCfg(),sg=num("err"),n=+$("mcn").value;
+ if(isNaN(K.ang))setTrigger(p,K.t);const Ka={...kickCfg(),mode:"angle"},Kt={...kickCfg(),mode:"time"};
+ const cnt={none:0,time:0,angle:0,re:0};
+ for(let i=0;i<n;i++){const d1=gauss()*sg,d2=gauss()*sg;const s0=start(d1,d2);
+  if(sim(s0,p,G.T,G,null)!=null)cnt.none++;if(sim(s0,p,G.T,G,Kt)!=null)cnt.time++;if(sim(s0,p,G.T,G,Ka)!=null)cnt.angle++;
+  // 측정 후 재계산
+  let s=s0;for(let j=0;j<Math.round(Kt.t/DT);j++)s=rk4(s,p);
+  const m=[s[0]+gauss()*0.2*D2R,s[1]+gauss()*0.2*D2R,s[2]+gauss()*0.02,s[3]+gauss()*0.02];let bJ=null,bs=1e9;
+  for(let j=-24;j<=24;j++){const J=j*0.00025,h=sim(impulse(m,J,p),p,G.T,G,null,Kt.t);if(h!=null){const sc=h+0.05*Math.abs(J)/0.006;if(sc<bs){bs=sc;bJ=J}}}
+  if(bJ!=null&&sim(impulse(s,bJ,p),p,G.T,G,null,Kt.t)!=null)cnt.re++;
+  if(i%5===0){note(`시행 ${i}/${n}…`);await sleep()}}
+ const rows=[["킥 없음",cnt.none,"--ghost"],["시간 기준 킥",cnt.time,"--mute"],["각도 기준 킥",cnt.angle,"--acc"],["측정 후 재계산",cnt.re,"--ok"]];
+ const[X,Y]=axes(-0.5,3.5,0,100,"킥 방식","목표 통과 성공률 (%)",[],[0,20,40,60,80,100],v=>v,v=>v+"%");
+ const bw=(X(1)-X(0))*0.5;rows.forEach(([lab,c,col],i)=>{const v=c/n*100;ax.fillStyle=css(col);ax.fillRect(X(i)-bw/2,Y(v),bw,Y(0)-Y(v));ax.fillStyle=css("--fg");ax.textAlign="center";ax.font="600 14px "+css("--mono");ax.fillText(v.toFixed(0)+"%",X(i),Y(v)-6);ax.font="13px "+css("--body");ax.fillText(lab,X(i),an.height-AP.b+18)});ax.textAlign="left";
+ lockB(false);note(`출발 각 오차 σ=${sg}°, ${n}회 시행 결과입니다. 측정 후 재계산은 킥 순간 엔코더 측정 오차(각도 0.2°, 각속도 0.02 rad/s)를 넣었습니다. 시간 기준 킥은 출발 오차가 커질수록 '이미 다른 상태'에서 킥하게 되어 성공률이 떨어지고, 실제 상태를 보고 반응하는 방식일수록 강해집니다.`);
+ table(`<table><tr><th>방식</th><th>성공</th><th>성공률</th></tr>${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}/${n}</td><td>${(r[1]/n*100).toFixed(0)}%</td></tr>`).join("")}</table>`)};
+
+/* ③ 예측 가능 시간 */
+$("horBtn").onclick=async()=>{if(busy)return;lockB(true);table("");const p=params(),G=tgt(),sgs=[0.05,0.1,0.25,0.5,1,2],out=[];
+ for(const sg of sgs){const n=60,base=[];let s=start();for(let i=0;i<4000;i++){s=rk4(s,p);if(i%5===0)base.push(tip(s,p))}
+  const devs=base.map(()=>[]);for(let k=0;k<n;k++){let q=start(gauss()*sg,gauss()*sg);for(let i=0;i<4000;i++){q=rk4(q,p);if(i%5===0){const b=base[i/5],a=tip(q,p);devs[i/5].push(Math.hypot(a[0]-b[0],a[1]-b[1]))}}}
+  let th=null;for(let i=0;i<devs.length;i++){const d=devs[i].sort((a,b)=>a-b)[n>>1];if(d>G.r){th=i*5*DT;break}}out.push([sg,th]);note(`σ=${sg}° 계산 완료`);await sleep()}
+ const[X,Y]=axes(Math.log10(0.03),Math.log10(3),0,8,"출발 각 오차 σ (°, 로그 눈금)","예측 가능 시간 (s)",[0.05,0.1,0.25,0.5,1,2].map(Math.log10),[0,2,4,6,8],v=>(10**v).toFixed(2).replace(/0+$/,"").replace(/\.$/,""),v=>v+"s");
+ ax.strokeStyle=css("--acc");ax.lineWidth=2;ax.beginPath();out.forEach(([s,t],i)=>{const u=X(Math.log10(s)),v=Y(t??8);i?ax.lineTo(u,v):ax.moveTo(u,v)});ax.stroke();
+ out.forEach(([s,t])=>{ax.fillStyle=css("--acc");ax.beginPath();ax.arc(X(Math.log10(s)),Y(t??8),5,0,7);ax.fill()});
+ lockB(false);const a=out[1][1],b=out[4][1];note(`출발 오차를 10배 줄여도(1° → 0.1°) 예측 가능 시간은 ${b?.toFixed(2)} s → ${a?.toFixed(2)} s로 약 ${(a-b).toFixed(2)}초만 늘어납니다. 오차와 시간이 로그 관계(직선)라는 것이 카오스의 특징이며, 제한 시간을 이 값보다 짧게 잡아야 이론과 실험을 비교할 수 있습니다.`);
+ table(`<table><tr><th>σ (°)</th>${out.map(o=>`<td>${o[0]}</td>`).join("")}</tr><tr><th>예측 가능 시간</th>${out.map(o=>`<td>${fmt(o[1])}</td>`).join("")}</tr></table>`)};
+
+/* ④ 감쇠 영향 */
+$("dmpBtn").onclick=()=>{table("");const p=params(),p0=params(true),G=tgt();let a=start(),b=start();const ts=[],d=[];
+ for(let i=0;i<3000;i++){a=rk4(a,p0);b=rk4(b,p);if(i%10===0){const u=tip(a,p0),v=tip(b,p);ts.push(i*DT);d.push(Math.hypot(u[0]-v[0],u[1]-v[1])*100)}}
+ const ymax=Math.max(10,Math.ceil(Math.max(...d)/5)*5);const[X,Y]=axes(0,6,0,ymax,"시간 (s)","이상 모델과 감쇠 모델의 끝점 차이 (cm)",[0,1,2,3,4,5,6],Array.from({length:6},(_,i)=>i*ymax/5),v=>v,v=>v.toFixed(0)+" cm");
+ ax.strokeStyle=css("--bad");ax.setLineDash([6,5]);ax.beginPath();ax.moveTo(X(0),Y(G.r*100));ax.lineTo(X(6),Y(G.r*100));ax.stroke();ax.setLineDash([]);
+ ax.strokeStyle=css("--acc");ax.lineWidth=2;ax.beginPath();ts.forEach((t,i)=>i?ax.lineTo(X(t),Y(d[i])):ax.moveTo(X(t),Y(d[i])));ax.stroke();
+ legend([["끝점 위치 차이","--acc"],["허용 반경","--bad"]]);
+ const ex=ts.find((t,i)=>d[i]>G.r*100);note(`감쇠(관절 마찰 c=${num("c")}, 공기저항 k=${num("k")})를 무시하면 ${ex!=null?ex.toFixed(2)+"초 뒤부터 예측이 허용 반경을 벗어납니다":"6초 동안 허용 반경 안에 머뭅니다"}. 감쇠는 작은 힘이지만 카오스가 그 차이를 증폭하므로, 실제 장치의 감쇠 계수를 측정해 모델에 넣는 것이 중요합니다.`)};
+
+/* ⑤ 실험 데이터 비교 */
+$("demoBtn").onclick=()=>{const p=params(),K=kickCfg();let s=start(),done=K.mode==="none",bf=false;const lines=["t,x,y"];
+ for(let i=0;i*DT<=num("tw");i++){const t=i*DT;if(!done){let f=false;if(K.mode==="time")f=t>=K.t;else{const sd=(s[0]-K.ang)*K.dir>=0;f=t>=K.t-0.3&&sd&&bf;bf=!sd}if(f){s=impulse(s,K.J*1.08,p);done=true}}
+  if(i%2===0){const[x,y]=tip(s,p);lines.push(`${t.toFixed(3)},${(x+gauss()*0.002).toFixed(4)},${(y+gauss()*0.002).toFixed(4)}`)}
+  s=rk4(s,{...p,c:p.c*1.6,k:p.k*1.3})}
+ $("data").value=lines.join("\n");note("예시 데이터를 넣었습니다. 실제 장치를 흉내 내려고 감쇠를 조금 더 크게, 킥을 8% 세게, 측정 잡음 2 mm를 넣어 만든 가짜 데이터입니다. 실제 측정값으로 바꿔 넣으세요.")};
+$("expBtn").onclick=()=>{table("");const rows=$("data").value.split(/\n/).map(l=>l.split(/[,\t; ]+/).map(Number)).filter(r=>r.length>=3&&r.every(v=>!isNaN(v)));
+ if(rows.length<5){note("숫자 행이 5개 이상 필요합니다. 한 줄에 t, x, y 순서로 넣어 주세요.");return}
+ const p=params(),K=kickCfg(),Tend=rows[rows.length-1][0];let s=start(),done=K.mode==="none",bf=false;const th=[];
+ for(let i=0;i*DT<=Tend+DT;i++){const t=i*DT;if(!done){let f=false;if(K.mode==="time")f=t>=K.t;else{const sd=(s[0]-K.ang)*K.dir>=0;f=t>=K.t-0.3&&sd&&bf;bf=!sd}if(f){s=impulse(s,K.J,p);done=true}}th.push(tip(s,p));s=rk4(s,p)}
+ const err=rows.map(r=>{const q=th[Math.min(th.length-1,Math.round(r[0]/DT))];return[r[0],Math.hypot(q[0]-r[1],q[1]-r[2])*100]});
+ const ymax=Math.max(5,Math.ceil(Math.max(...err.map(e=>e[1]))/5)*5),G=tgt();
+ const[X,Y]=axes(0,Math.ceil(Tend),0,ymax,"시간 (s)","이론과 측정의 끝점 차이 (cm)",Array.from({length:Math.ceil(Tend)+1},(_,i)=>i),Array.from({length:6},(_,i)=>i*ymax/5),v=>v,v=>v.toFixed(0)+" cm");
+ ax.strokeStyle=css("--bad");ax.setLineDash([6,5]);ax.beginPath();ax.moveTo(X(0),Y(G.r*100));ax.lineTo(X(Math.ceil(Tend)),Y(G.r*100));ax.stroke();ax.setLineDash([]);
+ ax.strokeStyle=css("--acc");ax.lineWidth=2;ax.beginPath();err.forEach((e,i)=>i?ax.lineTo(X(e[0]),Y(Math.min(ymax,e[1]))):ax.moveTo(X(e[0]),Y(Math.min(ymax,e[1]))));ax.stroke();
+ legend([["끝점 위치 차이","--acc"],["허용 반경","--bad"]]);
+ const ex=err.find(e=>e[1]>G.r*100),rm=w=>{const a=err.filter(e=>e[0]<=w);return Math.sqrt(a.reduce((s,e)=>s+e[1]**2,0)/a.length)};
+ note(`측정 ${rows.length}개 점 비교. 이론과 실험의 차이가 허용 반경(${(G.r*100).toFixed(0)} cm)을 처음 넘는 시각은 ${ex?ex[0].toFixed(2)+" s":"측정 구간 안에서 없음"}입니다. 차이가 시간이 갈수록 지수적으로 커진다면 카오스에 의한 오차 증폭이고, 처음부터 일정하게 어긋난다면 길이·각도 측정 같은 계통 오차를 의심해 보세요.`);
+ table(`<table><tr><th>구간</th><th>0~0.5 s</th><th>0~1 s</th><th>0~2 s</th><th>전체</th></tr><tr><th>RMS 오차</th><td>${rm(.5).toFixed(2)} cm</td><td>${rm(1).toFixed(2)} cm</td><td>${rm(2).toFixed(2)} cm</td><td>${rm(1e9).toFixed(2)} cm</td></tr></table>`)};
+
+setTrigger(params(),num("kt"));drawScene();
 </script>
+</body>
+</html>
